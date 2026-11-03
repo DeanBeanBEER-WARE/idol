@@ -22,11 +22,13 @@ Every modified upstream file starts with the line `Modified in DeanBeanBEER-WARE
 | `idol/__init__.py` | Local version | `0.1.0+mac.1` |
 | `idol/pipeline.py` | `select_device`: `IDOL_DEVICE`, then CUDA, MPS, CPU; off CUDA every random draw comes from a CPU generator seeded with `seed`; `decode` takes that generator | `0.1.0+mac.2` |
 | `idol/conditioning.py` | `ImageEncoder.__call__` takes the generator for the FLUX.2 VAE posterior sample | `0.1.0+mac.2` |
+| `idol/conditioning.py` | DINOv3 loads through `idol/dinov3.py`; a gated DINOv3 repo no longer stops the run when timm hosts the weights | `0.1.0+mac.3` |
+| `pyproject.toml` | `timm` in the `dev` extra (conversion tests) | `0.1.0+mac.3` |
 | `idol/models/decoder.py` | Octree `sample` and `systematic_sample` take the generator | `0.1.0+mac.2` |
 | `idol/sample.py` | `--device` flag; `--no_optimize` help says CUDA | `0.1.0+mac.2` |
 | `demo/model.py` | Device picked automatically outside ZeroGPU | `0.1.0+mac.2` |
 
-Added files: `idol/rng.py` (random draws from an optional CPU generator), `tests/`.
+Added files: `idol/rng.py` (random draws from an optional CPU generator), `idol/dinov3.py` (DINOv3 from timm's ungated copy of the original weights when Meta's repo is not readable), `tests/`.
 
 ## Syncing with upstream
 

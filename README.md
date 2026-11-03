@@ -24,12 +24,14 @@ python3.13 -m venv .venv
 
 ## Hugging Face access
 
-The weights download on first use. Two of the image encoders are gated:
+The weights download on first use. The FLUX.2 VAE is gated:
 
-1. Accept the terms on [facebook/dinov3-vith16plus-pretrain-lvd1689m](https://huggingface.co/facebook/dinov3-vith16plus-pretrain-lvd1689m) and [black-forest-labs/FLUX.2-dev](https://huggingface.co/black-forest-labs/FLUX.2-dev) (only the VAE is downloaded).
+1. Accept the terms on [black-forest-labs/FLUX.2-dev](https://huggingface.co/black-forest-labs/FLUX.2-dev) (FLUX Non-Commercial License; only the VAE is downloaded).
 2. Log in: `.venv/bin/hf auth login`, or set `HF_TOKEN`.
 
-Without access, Idol stops before downloading anything and says what is missing.
+The DINOv3 encoder comes from [facebook/dinov3-vith16plus-pretrain-lvd1689m](https://huggingface.co/facebook/dinov3-vith16plus-pretrain-lvd1689m) when your account has access to it (Meta reviews requests by hand). Otherwise Idol loads the same original weights from timm's ungated copy [timm/vit_huge_plus_patch16_dinov3.lvd1689m](https://huggingface.co/timm/vit_huge_plus_patch16_dinov3.lvd1689m) and converts them; the DINOv3 License applies either way. Without access to the FLUX.2 VAE, Idol stops before downloading anything and says what is missing.
+
+After the first run everything is cached in `~/.cache/huggingface`; `HF_HUB_OFFLINE=1` skips all Hugging Face requests.
 
 ## Usage
 
@@ -76,11 +78,12 @@ Measured on an M3 Max (64 GB) with PyTorch 2.15 and the default settings:
 | Stage | Time | Peak memory |
 |---|---|---|
 | Background removal (BiRefNet, fp32) | 0.5 s | 8.5 GB |
-| Sampling (50 steps with guidance) | 6.5 min | 3.0 GB |
+| DINOv3 encoder (bf16) | 1.2 s | |
+| Sampling (50 steps with guidance) | 6.5 to 7 min | 3.0 GB |
 | Decoding 262,144 Gaussians | 3 s | 1.7 GB |
 | Decoding 1,048,576 Gaussians | 16.5 s | 3.8 GB |
 
-Peak memory is the MPS driver allocation of that stage, its weights included. Sampling dominates the run time and scales linearly with `--steps`. The image encoders (DINOv3 and the FLUX.2 VAE) are not in the table yet.
+Peak memory is the MPS driver allocation of that stage, its weights included. A complete run of one image at the defaults took 8 minutes, model loading included. Sampling dominates the run time and scales linearly with `--steps`; under sustained load the GPU slows down, from about 6.5 s to 12 s per step.
 
 Off CUDA every random draw comes from a CPU generator seeded with `--seed`, so the Apple GPU and the (much slower) CPU get the same draws. The same seed gives a different object on CUDA.
 

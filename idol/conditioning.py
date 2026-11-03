@@ -5,6 +5,8 @@ import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 
+from .dinov3 import TIMM_COPIES, load_dinov3
+
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 DTYPES = {'fp32': torch.float32, 'bf16': torch.bfloat16, 'fp16': torch.float16}
@@ -18,7 +20,8 @@ class EncoderAccessError(RuntimeError):
 def require_encoder_access(repos):
     """Stop with an explanation, before anything large is downloaded, when the gated encoder repos are not readable.
 
-    Network problems are not treated as missing access: the encoders may already be in the local cache."""
+    Network problems are not treated as missing access: the encoders may already be in the local cache. A repo with
+    an ungated timm copy (``dinov3.TIMM_COPIES``) never stops the run."""
     import os
 
     from huggingface_hub import auth_check, get_token
@@ -34,7 +37,8 @@ def require_encoder_access(repos):
             auth_check(repo)
             _ACCESSIBLE_REPOS.add(repo)
         except (GatedRepoError, RepositoryNotFoundError):
-            denied.append(repo)
+            if repo not in TIMM_COPIES:
+                denied.append(repo)
         except Exception:
             pass
     if not denied:
@@ -56,10 +60,9 @@ class ImageEncoder:
     def __init__(self, dinov3_repo: str, flux2_vae_repo: str,
                  dinov3_dtype: str = 'bf16', device: str = 'cuda'):
         from diffusers.models import AutoencoderKLFlux2
-        from transformers import AutoModel
 
         self.device = torch.device(device)
-        self.dinov3 = AutoModel.from_pretrained(dinov3_repo, torch_dtype=DTYPES[dinov3_dtype])
+        self.dinov3 = load_dinov3(dinov3_repo, DTYPES[dinov3_dtype])
         self.dinov3 = self.dinov3.eval().requires_grad_(False).to(self.device)
         self.flux2_vae = AutoencoderKLFlux2.from_pretrained(flux2_vae_repo, subfolder='vae',
                                                             torch_dtype=torch.bfloat16)

@@ -1,7 +1,7 @@
 # Modified in DeanBeanBEER-WARE/idol, see UPSTREAM.md.
 [project]
 name = "idol"
-version = "0.1.0+mac.2"
+version = "0.1.0+mac.3"
 description = "Idol: a single image to 3D Gaussians"
 readme = "README.md"
 license = "Apache-2.0"
@@ -23,7 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 demo = ["gradio==5.49.1", "spaces"]
-dev = ["ruff==0.17.3", "pytest>=9.2"]
+dev = ["ruff==0.17.3", "pytest>=9.2", "timm>=1.0.30"]
 
 [build-system]
 requires = ["hatchling"]

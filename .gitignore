@@ -1,6 +1,30 @@
-.DS_Store
+# local-only files, see docs/static/RULES.md Section 3
 CLAUDE.md
 docs/
 .claude/settings.local.json
 .env
 .dev.vars
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+uv.lock
+
+# tooling
+.ruff_cache/
+.pytest_cache/
+
+# outputs and weights
+/outputs/
+*.ply
+*.safetensors
+*.pt
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/

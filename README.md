@@ -71,6 +71,18 @@ output.gaussian.save_ply("photo.ply")
 output.preprocessed_image.save("photo_input.png")
 ```
 
+## Demo
+
+The Gradio demo with a 3D viewer and the example images runs locally:
+
+```bash
+.venv/bin/pip install -e ".[demo]"
+ln -s "$PWD/bin/idol" /opt/homebrew/bin/idol   # once, puts the launcher on the PATH
+idol
+```
+
+`idol` serves the demo on 127.0.0.1 only, turns off Gradio's analytics and prints `To see the GUI go to: http://127.0.0.1:7860` once the models are loaded. It runs offline from the Hugging Face cache; for the very first run, or after an update of the weights, start it with `IDOL_ONLINE=1 idol`. `GRADIO_SERVER_PORT` changes the port. Generated `.ply` files can be downloaded from the viewer.
+
 ## On the Mac
 
 Measured on an M3 Max (64 GB) with PyTorch 2.15 and the default settings:

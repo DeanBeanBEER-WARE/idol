@@ -1,0 +1,29 @@
+#!/usr/bin/env zsh
+# Idol demo launcher: runs the Gradio demo locally (Apple GPU via MPS) and prints its address once it is ready.
+# Install: ln -s "$PWD/bin/idol" /opt/homebrew/bin/idol
+
+IDOL_DIR="${0:A:h:h}"
+VENV_PYTHON="$IDOL_DIR/.venv/bin/python"
+
+if [ ! -x "$VENV_PYTHON" ]; then
+    echo "Python environment not found: $VENV_PYTHON (see README, Install)"
+    exit 1
+fi
+
+export GRADIO_SERVER_NAME="${GRADIO_SERVER_NAME:-127.0.0.1}"
+export GRADIO_SERVER_PORT="${GRADIO_SERVER_PORT:-7860}"
+export GRADIO_ANALYTICS_ENABLED=False
+# the weights are cached after the first run; IDOL_ONLINE=1 allows downloads and access checks again
+if [ "${IDOL_ONLINE:-0}" != "1" ]; then
+    export HF_HUB_OFFLINE=1
+fi
+
+cd "$IDOL_DIR" || exit 1
+echo "Starting Idol (local on Apple Silicon, MPS). Loading the models takes about a minute..."
+"$VENV_PYTHON" -u demo/app.py "$@" 2>&1 | while IFS= read -r line; do
+    case "$line" in
+        *"Running on local URL:"*) echo "To see the GUI go to: http://$GRADIO_SERVER_NAME:$GRADIO_SERVER_PORT" ;;
+        *"To create a public link"*|*"Redirects are currently not supported"*) ;;
+        *) echo "$line" ;;
+    esac
+done

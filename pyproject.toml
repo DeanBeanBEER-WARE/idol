@@ -1,7 +1,7 @@
 # Modified in DeanBeanBEER-WARE/idol, see UPSTREAM.md.
 [project]
 name = "idol"
-version = "0.1.0+mac.3"
+version = "0.1.0+mac.4"
 description = "Idol: a single image to 3D Gaussians"
 readme = "README.md"
 license = "Apache-2.0"

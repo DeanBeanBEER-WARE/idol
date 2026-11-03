@@ -28,7 +28,7 @@ Every modified upstream file starts with the line `Modified in DeanBeanBEER-WARE
 | `idol/sample.py` | `--device` flag; `--no_optimize` help says CUDA | `0.1.0+mac.2` |
 | `demo/model.py` | Device picked automatically outside ZeroGPU | `0.1.0+mac.2` |
 
-Added files: `idol/rng.py` (random draws from an optional CPU generator), `idol/dinov3.py` (DINOv3 from timm's ungated copy of the original weights when Meta's repo is not readable), `tests/`.
+Added files: `idol/rng.py` (random draws from an optional CPU generator), `idol/dinov3.py` (DINOv3 from timm's ungated copy of the original weights when Meta's repo is not readable), `bin/idol` (launcher for the local demo), `tests/`.
 
 ## Syncing with upstream
 

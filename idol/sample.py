@@ -1,3 +1,4 @@
+# Modified in DeanBeanBEER-WARE/idol, see UPSTREAM.md.
 import argparse
 import json
 import os
@@ -25,9 +26,12 @@ def main():
                         help='32,768 to 1,048,576, a multiple of 32')
     parser.add_argument('--weights', default='speridlabs/idol', help='Hugging Face repo or local folder')
     parser.add_argument('--dinov3_dtype', choices=['bf16', 'fp32'], default='bf16')
+    parser.add_argument('--device', choices=['auto', 'cuda', 'mps', 'cpu'], default=None,
+                        help="where to run (default: the IDOL_DEVICE environment variable, else 'auto': CUDA, then "
+                             "MPS, then CPU)")
     parser.add_argument('--no_optimize', dest='optimize', action='store_false',
                         help='turn off the faster sampling (torch.compile, batched guidance, cuDNN attention, TF32) '
-                             'that is on by default on GPU')
+                             'that is on by default on CUDA')
     args = parser.parse_args()
 
     if os.path.isdir(args.image):
@@ -38,7 +42,8 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     try:
-        pipeline = IdolPipeline.from_pretrained(args.weights, dinov3_dtype=args.dinov3_dtype, optimize=args.optimize)
+        pipeline = IdolPipeline.from_pretrained(args.weights, device=args.device, dinov3_dtype=args.dinov3_dtype,
+                                                optimize=args.optimize)
     except EncoderAccessError as error:
         raise SystemExit(f'error: {error}')
     for path in images:

@@ -1,3 +1,4 @@
+# Modified in DeanBeanBEER-WARE/idol, see UPSTREAM.md.
 import json
 import os
 import types
@@ -18,6 +19,7 @@ from .models import BiRefNet, GaussianFixedlenDecoder, LatentSeqMMFlowModel, Oct
 from .models import layers
 from .models.layers import RePo3DRotaryEmbedding, UnifiedTransformerBlock
 from .preprocess import CROP_MARGIN, preprocess_image
+from .rng import randn
 from .sampler import sample_flow
 
 DEFAULT_REPO = 'speridlabs/idol'
@@ -30,6 +32,19 @@ class IdolOutput:
     gaussian: Gaussian               # the object; .save_ply(path) writes a standard 3DGS PLY
     preprocessed_image: Image.Image  # the 1024 x 1024 image the model saw (background removed, cropped)
     camera: dict                     # predicted input camera: yaw, pitch (radians), radius, fov (degrees)
+
+
+def select_device(device: Optional[str] = None) -> torch.device:
+    """'cuda', 'mps', 'cpu' or 'auto' -> the torch device to run on. None reads the IDOL_DEVICE environment variable
+    (default 'auto'); 'auto' picks the first available of CUDA, MPS (the Apple GPU) and CPU."""
+    requested = device or os.environ.get('IDOL_DEVICE', 'auto')
+    if requested != 'auto':
+        return torch.device(requested)
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    if torch.backends.mps.is_available():
+        return torch.device('mps')
+    return torch.device('cpu')
 
 
 def compile_for_sampling(denoiser):
@@ -46,12 +61,14 @@ def compile_for_sampling(denoiser):
 
 
 class IdolPipeline:
-    """optimize (default on, CUDA only): ~1.7x faster sampling at the same output quality: compiled denoiser
+    """device: 'cuda', 'mps', 'cpu' or 'auto'; None reads IDOL_DEVICE (see ``select_device``).
+
+    optimize (default on, CUDA only): ~1.7x faster sampling at the same output quality: compiled denoiser
     (torch.compile), conditional and unconditional passes batched together, cuDNN attention and TF32 matmuls while
     sampling. The first generation in a process compiles first. optimize=False runs everything eagerly."""
     def __init__(self, weights_dir: str, device: Optional[str] = None, dinov3_dtype: str = 'bf16',
                  optimize: bool = True):
-        self.device = torch.device(device or ('cuda' if torch.cuda.is_available() else 'cpu'))
+        self.device = select_device(device)
         with open(os.path.join(weights_dir, 'config.json')) as f:
             self.config = json.load(f)
         encoders = self.config['image_encoders']
@@ -110,21 +127,24 @@ class IdolPipeline:
         """Generate the 3D Gaussians of the object in ``image``.
 
         mode / crop_margin: see ``preprocess``.
+        seed: off CUDA every random draw comes from a CPU generator seeded with it, so MPS and CPU get the same
+        draws for a seed.
         num_gaussians: 32,768 to 1,048,576, rounded down to a multiple of 32."""
         prepared = self.preprocess(image, mode=mode, crop_margin=crop_margin)
         pixels = torch.from_numpy(np.array(prepared)).permute(2, 0, 1).float().div(255.0)[None].to(self.device)
 
         torch.manual_seed(seed)
-        cond = self.image_encoder(pixels)
+        generator = None if self.device.type == 'cuda' else torch.Generator().manual_seed(seed)
+        cond = self.image_encoder(pixels, generator)
         noise = TensorDict({
-            'latent': torch.randn(1, self.denoiser.q_token_length, self.denoiser.in_channels, device=self.device),
-            'camera': torch.randn(1, 1, self.denoiser.cam_channels, device=self.device),
+            'latent': randn((1, self.denoiser.q_token_length, self.denoiser.in_channels), generator, self.device),
+            'camera': randn((1, 1, self.denoiser.cam_channels), generator, self.device),
         }, batch_size=1, device=self.device)
         with self._sampling_settings():
             sample = sample_flow(self.denoiser, noise, cond=cond, neg_cond=cond.apply(torch.zeros_like),
                                  steps=steps, rescale_t=rescale_t, cfg_strength=cfg_strength, verbose=verbose,
                                  batch_cfg=self.optimize)
-        gaussian = self.decode(sample['latent'], num_gaussians)
+        gaussian = self.decode(sample['latent'], num_gaussians, generator)
         return IdolOutput(gaussian=gaussian, preprocessed_image=prepared, camera=decode_camera(sample['camera'][0, 0]))
 
     @contextmanager
@@ -143,11 +163,13 @@ class IdolPipeline:
             torch.backends.cuda.matmul.allow_tf32 = tf32
 
     @torch.no_grad()
-    def decode(self, latent: torch.Tensor, num_gaussians: int = 262144) -> Gaussian:
+    def decode(self, latent: torch.Tensor, num_gaussians: int = 262144,
+               generator: Optional[torch.Generator] = None) -> Gaussian:
         """Latent [1, 8192, 16] -> Gaussians: the octree decoder places num_gaussians / 32 anchor points, the
-        Gaussian decoder turns each anchor into 32 Gaussians."""
+        Gaussian decoder turns each anchor into 32 Gaussians. generator: CPU generator for the anchor placement
+        (None: the default generator of the device)."""
         per_anchor = self.decoder_gs.rep_config['num_gaussians']
         anchors = OctreeProbabilityFixedlenDecoder.sample(self.decoder, latent,
                                                           num_points=max(1, int(num_gaussians) // per_anchor),
-                                                          level=self.config['max_voxel_level'])
+                                                          level=self.config['max_voxel_level'], generator=generator)
         return self.decoder_gs.to_representation(anchors, self.decoder_gs(anchors, latent))[0]

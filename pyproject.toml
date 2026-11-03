@@ -1,16 +1,17 @@
 # Modified in DeanBeanBEER-WARE/idol, see UPSTREAM.md.
 [project]
 name = "idol"
-version = "0.1.0+mac.1"
+version = "0.1.0+mac.2"
 description = "Idol: a single image to 3D Gaussians"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
+# upper bounds: the newest versions tested on MPS; torchvision 0.29 brings the MPS kernel of deform_conv2d (BiRefNet)
 dependencies = [
-    "torch>=2.5",
-    "torchvision>=0.20",
-    "transformers>=4.56",
-    "diffusers>=0.36",
+    "torch>=2.5,<2.16",
+    "torchvision>=0.29,<0.30",
+    "transformers>=4.56,<5.23",
+    "diffusers>=0.36,<0.43",
     "huggingface_hub>=0.34",
     "safetensors>=0.4",
     "tensordict>=0.8",

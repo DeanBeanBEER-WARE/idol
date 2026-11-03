@@ -1,10 +1,12 @@
-from typing import List
+# Modified in DeanBeanBEER-WARE/idol, see UPSTREAM.md.
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from ..gaussian import Gaussian
+from ..rng import rand
 from .layers import (ModulatedTransformerCrossOnlyBlock, PcdAbsolutePositionEmbedderv2, SinusoidalEmbedder,
                      TransformerCrossBlock, convert_module_to_f16)
 
@@ -43,8 +45,11 @@ class OctreeProbabilityFixedlenDecoder(nn.Module):
 
     @staticmethod
     @torch.no_grad()
-    def sample(model, cond: torch.Tensor, num_points: int, level: int) -> torch.Tensor:
-        """Place num_points anchor points [B, num_points, 3] in [0, 1]^3, descending the octree to ``level``."""
+    def sample(model, cond: torch.Tensor, num_points: int, level: int,
+               generator: Optional[torch.Generator] = None) -> torch.Tensor:
+        """Place num_points anchor points [B, num_points, 3] in [0, 1]^3, descending the octree to ``level``.
+
+        generator: CPU generator for the random draws (None: the default generator of cond's device)."""
         B = cond.shape[0]
         device = cond.device
         child_offset = torch.tensor([[i, j, k] for k in [0, 1] for j in [0, 1] for i in [0, 1]], dtype=torch.long,
@@ -58,7 +63,7 @@ class OctreeProbabilityFixedlenDecoder(nn.Module):
             parent_coords_norm = (prev_coords_int.to(torch.float32) + 0.5) / res_p
             res_tensor = torch.full((B,), 1 << l, dtype=torch.long, device=device)
             pred_probs = torch.softmax(model(parent_coords_norm, res_tensor, cond), dim=-1)    # [B, Np, 8]
-            sampled = systematic_sample(pred_probs, prev_counts).flatten(1, 2)                   # [B, Np*8]
+            sampled = systematic_sample(pred_probs, prev_counts, generator).flatten(1, 2)        # [B, Np*8]
             child_coords_int = (prev_coords_int[:, :, None, :] * 2 + child_offset[None, None, :, :]).flatten(1, 2)
 
             # keep the children that received points, packed to the front
@@ -74,12 +79,15 @@ class OctreeProbabilityFixedlenDecoder(nn.Module):
         # each point lands at a uniformly random position inside its leaf cell
         coords_int = torch.repeat_interleave(prev_coords_int.flatten(0, 1), prev_counts.flatten(0, 1),
                                              dim=0).reshape(B, num_points, -1)
-        return (coords_int.to(torch.float32) + torch.rand_like(coords_int, dtype=torch.float32)) / (1 << level)
+        return (coords_int.to(torch.float32) + rand(coords_int.shape, generator, device)) / (1 << level)
 
 
 @torch.no_grad()
-def systematic_sample(probs: torch.Tensor, counts: torch.Tensor) -> torch.Tensor:
-    """Split counts[...] items among the P bins of probs[..., P] by systematic resampling -> [..., P] counts."""
+def systematic_sample(probs: torch.Tensor, counts: torch.Tensor,
+                      generator: Optional[torch.Generator] = None) -> torch.Tensor:
+    """Split counts[...] items among the P bins of probs[..., P] by systematic resampling -> [..., P] counts.
+
+    generator: CPU generator for the random offsets (None: the default generator of probs' device)."""
     batch_shape = counts.shape
     B = counts.numel()
     P = probs.size(-1)
@@ -105,7 +113,7 @@ def systematic_sample(probs: torch.Tensor, counts: torch.Tensor) -> torch.Tensor
             continue
         rows = (inv == index).nonzero(as_tuple=False).squeeze(1)
         r = rows.numel()
-        u0 = torch.rand(r, 1, device=device) / float(n)                                   # random offset in [0, 1/n)
+        u0 = rand((r, 1), generator, device) / float(n)                                   # random offset in [0, 1/n)
         grid = torch.arange(n, device=device, dtype=torch.float32)[None, :] / float(n)    # stratified points
         us = (u0 + grid).clamp(max=1.0 - 1e-12)
         idx = torch.searchsorted(cdf.index_select(0, rows), us).clamp_max(P - 1)

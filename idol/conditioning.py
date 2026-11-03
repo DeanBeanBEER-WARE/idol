@@ -1,3 +1,6 @@
+# Modified in DeanBeanBEER-WARE/idol, see UPSTREAM.md.
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
@@ -70,9 +73,9 @@ class ImageEncoder:
         tokens = self.dinov3(pixel_values=images.to(dtype)).last_hidden_state.float()
         return F.layer_norm(tokens, tokens.shape[-1:])
 
-    def _flux2_tokens(self, images):
+    def _flux2_tokens(self, images, generator=None):
         vae = self.flux2_vae
-        latents = vae.encode(images.to(torch.bfloat16) * 2 - 1).latent_dist.sample()
+        latents = vae.encode(images.to(torch.bfloat16) * 2 - 1).latent_dist.sample(generator=generator)
         batch, channels, height, width = latents.shape
         latents = latents.view(batch, channels, height // 2, 2, width // 2, 2).permute(0, 1, 3, 5, 2, 4)
         latents = latents.reshape(batch, channels * 4, height // 2, width // 2)
@@ -83,9 +86,11 @@ class ImageEncoder:
         return torch.cat([padding, tokens], dim=1)
 
     @torch.no_grad()
-    def __call__(self, images: torch.Tensor) -> TensorDict:
-        """images: [B, 3, 1024, 1024] in [0, 1] -> TensorDict(feature1=DINOv3 tokens, feature2=FLUX.2 VAE tokens)."""
+    def __call__(self, images: torch.Tensor, generator: Optional[torch.Generator] = None) -> TensorDict:
+        """images: [B, 3, 1024, 1024] in [0, 1] -> TensorDict(feature1=DINOv3 tokens, feature2=FLUX.2 VAE tokens).
+
+        generator: CPU generator for the VAE's posterior sample (None: the default generator of the device)."""
         images = images.to(self.device)
         feature1 = self._dinov3_tokens(images)
-        feature2 = self._flux2_tokens(images)
+        feature2 = self._flux2_tokens(images, generator)
         return TensorDict({'feature1': feature1, 'feature2': feature2}, batch_size=feature1.shape[0])

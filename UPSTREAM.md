@@ -18,7 +18,15 @@ Every modified upstream file starts with the line `Modified in DeanBeanBEER-WARE
 | File | Change | Since |
 |---|---|---|
 | `pyproject.toml` | Local version `0.1.0+mac.N`; `dev` extra (ruff, pytest); ruff limited to the classic rule set with per-file ignores for upstream code; pytest settings | `0.1.0+mac.1` |
+| `pyproject.toml` | Upper bounds on torch, torchvision, transformers and diffusers (newest versions tested on MPS); torchvision at least 0.29 for the MPS kernel of `deform_conv2d` | `0.1.0+mac.2` |
 | `idol/__init__.py` | Local version | `0.1.0+mac.1` |
+| `idol/pipeline.py` | `select_device`: `IDOL_DEVICE`, then CUDA, MPS, CPU; off CUDA every random draw comes from a CPU generator seeded with `seed`; `decode` takes that generator | `0.1.0+mac.2` |
+| `idol/conditioning.py` | `ImageEncoder.__call__` takes the generator for the FLUX.2 VAE posterior sample | `0.1.0+mac.2` |
+| `idol/models/decoder.py` | Octree `sample` and `systematic_sample` take the generator | `0.1.0+mac.2` |
+| `idol/sample.py` | `--device` flag; `--no_optimize` help says CUDA | `0.1.0+mac.2` |
+| `demo/model.py` | Device picked automatically outside ZeroGPU | `0.1.0+mac.2` |
+
+Added files: `idol/rng.py` (random draws from an optional CPU generator), `tests/`.
 
 ## Syncing with upstream
 

@@ -1,0 +1,6 @@
+.DS_Store
+CLAUDE.md
+docs/
+.claude/settings.local.json
+.env
+.dev.vars
